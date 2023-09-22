@@ -19,6 +19,7 @@ import {
   RateLimiterCreator,
   RateLimiterOpts,
   Options as XrpcServerOptions,
+  Server as XrpcServer,
 } from '@atproto/xrpc-server'
 import { DAY, HOUR, MINUTE } from '@atproto/common'
 import * as appviewConsumers from './app-view/event-stream/consumers'
@@ -60,13 +61,15 @@ export class PDS {
   public ctx: AppContext
   public app: express.Application
   public server?: http.Server
+  public xrpc?: XrpcServer
   private terminator?: HttpTerminator
   private dbStatsInterval?: NodeJS.Timer
   private sequencerStatsInterval?: NodeJS.Timer
 
-  constructor(opts: { ctx: AppContext; app: express.Application }) {
+  constructor(opts: { ctx: AppContext; app: express.Application; xrpc?: XrpcServer }) {
     this.ctx = opts.ctx
     this.app = opts.app
+    this.xrpc = opts.xrpc
   }
 
   static create(opts: {
@@ -258,7 +261,7 @@ export class PDS {
     app.use(server.xrpc.router)
     app.use(error.handler)
 
-    return new PDS({ ctx, app })
+    return new PDS({ ctx, app, xrpc: server.xrpc })
   }
 
   async start(): Promise<http.Server> {
