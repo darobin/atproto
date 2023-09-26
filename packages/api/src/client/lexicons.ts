@@ -1113,6 +1113,10 @@ export const schemaDict = {
           properties: {
             term: {
               type: 'string',
+              description: "DEPRECATED: use 'q' instead",
+            },
+            q: {
+              type: 'string',
             },
             invitedBy: {
               type: 'string',
@@ -3998,18 +4002,24 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'query',
-        description: 'Find actors matching search criteria.',
+        description: 'Find actors (profiles) matching search criteria.',
         parameters: {
           type: 'params',
           properties: {
             term: {
               type: 'string',
+              description: "DEPRECATED: use 'q' instead",
+            },
+            q: {
+              type: 'string',
+              description:
+                'search query string; syntax, phrase, boolean, and faceting is unspecified, but Lucene query syntax is recommended',
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
-              default: 50,
+              default: 25,
             },
             cursor: {
               type: 'string',
@@ -4050,12 +4060,17 @@ export const schemaDict = {
           properties: {
             term: {
               type: 'string',
+              description: "DEPRECATED: use 'q' instead",
+            },
+            q: {
+              type: 'string',
+              description: 'search query prefix; not a full query string',
             },
             limit: {
               type: 'integer',
               minimum: 1,
               maximum: 100,
-              default: 50,
+              default: 10,
             },
           },
         },
@@ -5622,6 +5637,16 @@ export const schemaDict = {
               type: 'union',
               refs: ['lex:com.atproto.label.defs#selfLabels'],
             },
+            tags: {
+              type: 'array',
+              maxLength: 8,
+              items: {
+                type: 'string',
+                maxLength: 640,
+                maxGraphemes: 64,
+              },
+              description: 'Additional non-inline tags describing this post.',
+            },
             createdAt: {
               type: 'string',
               format: 'datetime',
@@ -5700,6 +5725,67 @@ export const schemaDict = {
             },
           },
         },
+      },
+    },
+  },
+  AppBskyFeedSearchPosts: {
+    lexicon: 1,
+    id: 'app.bsky.feed.searchPosts',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Find posts matching search criteria',
+        parameters: {
+          type: 'params',
+          required: ['q'],
+          properties: {
+            q: {
+              type: 'string',
+              description:
+                'search query string; syntax, phrase, boolean, and faceting is unspecified, but Lucene query syntax is recommended',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 25,
+            },
+            cursor: {
+              type: 'string',
+              description:
+                'optional pagination mechanism; may not necessarily allow scrolling through entire result set',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['posts'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              hitsTotal: {
+                type: 'integer',
+                description:
+                  'count of search hits. optional, may be rounded/truncated, and may not be possible to paginate through all hits',
+              },
+              posts: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:app.bsky.feed.defs#postView',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'BadQueryString',
+          },
+        ],
       },
     },
   },
@@ -6761,6 +6847,7 @@ export const schemaDict = {
               refs: [
                 'lex:app.bsky.richtext.facet#mention',
                 'lex:app.bsky.richtext.facet#link',
+                'lex:app.bsky.richtext.facet#tag',
               ],
             },
           },
@@ -6788,6 +6875,18 @@ export const schemaDict = {
           },
         },
       },
+      tag: {
+        type: 'object',
+        description: 'A hashtag.',
+        required: ['tag'],
+        properties: {
+          tag: {
+            type: 'string',
+            maxLength: 640,
+            maxGraphemes: 64,
+          },
+        },
+      },
       byteSlice: {
         type: 'object',
         description:
@@ -6806,27 +6905,27 @@ export const schemaDict = {
       },
     },
   },
-  AppBskyUnspeccedApplyLabels: {
+  AppBskyUnspeccedDefs: {
     lexicon: 1,
-    id: 'app.bsky.unspecced.applyLabels',
+    id: 'app.bsky.unspecced.defs',
     defs: {
-      main: {
-        type: 'procedure',
-        description: 'Allow a labeler to apply labels directly.',
-        input: {
-          encoding: 'application/json',
-          schema: {
-            type: 'object',
-            required: ['labels'],
-            properties: {
-              labels: {
-                type: 'array',
-                items: {
-                  type: 'ref',
-                  ref: 'lex:com.atproto.label.defs#label',
-                },
-              },
-            },
+      skeletonSearchPost: {
+        type: 'object',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
+          },
+        },
+      },
+      skeletonSearchActor: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
           },
         },
       },
@@ -6974,6 +7073,132 @@ export const schemaDict = {
       },
     },
   },
+  AppBskyUnspeccedSearchActorsSkeleton: {
+    lexicon: 1,
+    id: 'app.bsky.unspecced.searchActorsSkeleton',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Backend Actors (profile) search, returning only skeleton',
+        parameters: {
+          type: 'params',
+          required: ['q'],
+          properties: {
+            q: {
+              type: 'string',
+              description:
+                'search query string; syntax, phrase, boolean, and faceting is unspecified, but Lucene query syntax is recommended. For typeahead search, only simple term match is supported, not full syntax',
+            },
+            typeahead: {
+              type: 'boolean',
+              description: "if true, acts as fast/simple 'typeahead' query",
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 25,
+            },
+            cursor: {
+              type: 'string',
+              description:
+                'optional pagination mechanism; may not necessarily allow scrolling through entire result set',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['actors'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              hitsTotal: {
+                type: 'integer',
+                description:
+                  'count of search hits. optional, may be rounded/truncated, and may not be possible to paginate through all hits',
+              },
+              actors: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:app.bsky.unspecced.defs#skeletonSearchActor',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'BadQueryString',
+          },
+        ],
+      },
+    },
+  },
+  AppBskyUnspeccedSearchPostsSkeleton: {
+    lexicon: 1,
+    id: 'app.bsky.unspecced.searchPostsSkeleton',
+    defs: {
+      main: {
+        type: 'query',
+        description: 'Backend Posts search, returning only skeleton',
+        parameters: {
+          type: 'params',
+          required: ['q'],
+          properties: {
+            q: {
+              type: 'string',
+              description:
+                'search query string; syntax, phrase, boolean, and faceting is unspecified, but Lucene query syntax is recommended',
+            },
+            limit: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 100,
+              default: 25,
+            },
+            cursor: {
+              type: 'string',
+              description:
+                'optional pagination mechanism; may not necessarily allow scrolling through entire result set',
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            required: ['posts'],
+            properties: {
+              cursor: {
+                type: 'string',
+              },
+              hitsTotal: {
+                type: 'integer',
+                description:
+                  'count of search hits. optional, may be rounded/truncated, and may not be possible to paginate through all hits',
+              },
+              posts: {
+                type: 'array',
+                items: {
+                  type: 'ref',
+                  ref: 'lex:app.bsky.unspecced.defs#skeletonSearchPost',
+                },
+              },
+            },
+          },
+        },
+        errors: [
+          {
+            name: 'BadQueryString',
+          },
+        ],
+      },
+    },
+  },
 }
 export const schemas: LexiconDoc[] = Object.values(schemaDict) as LexiconDoc[]
 export const lexicons: Lexicons = new Lexicons(schemas)
@@ -7080,6 +7305,7 @@ export const ids = {
   AppBskyFeedLike: 'app.bsky.feed.like',
   AppBskyFeedPost: 'app.bsky.feed.post',
   AppBskyFeedRepost: 'app.bsky.feed.repost',
+  AppBskyFeedSearchPosts: 'app.bsky.feed.searchPosts',
   AppBskyFeedThreadgate: 'app.bsky.feed.threadgate',
   AppBskyGraphBlock: 'app.bsky.graph.block',
   AppBskyGraphDefs: 'app.bsky.graph.defs',
@@ -7107,9 +7333,12 @@ export const ids = {
   AppBskyNotificationRegisterPush: 'app.bsky.notification.registerPush',
   AppBskyNotificationUpdateSeen: 'app.bsky.notification.updateSeen',
   AppBskyRichtextFacet: 'app.bsky.richtext.facet',
-  AppBskyUnspeccedApplyLabels: 'app.bsky.unspecced.applyLabels',
+  AppBskyUnspeccedDefs: 'app.bsky.unspecced.defs',
   AppBskyUnspeccedGetPopular: 'app.bsky.unspecced.getPopular',
   AppBskyUnspeccedGetPopularFeedGenerators:
     'app.bsky.unspecced.getPopularFeedGenerators',
   AppBskyUnspeccedGetTimelineSkeleton: 'app.bsky.unspecced.getTimelineSkeleton',
+  AppBskyUnspeccedSearchActorsSkeleton:
+    'app.bsky.unspecced.searchActorsSkeleton',
+  AppBskyUnspeccedSearchPostsSkeleton: 'app.bsky.unspecced.searchPostsSkeleton',
 }
